@@ -6,7 +6,7 @@
         </encoder>
     </appender>
 
-    <logger name="com.softwaremill" level="INFO"/>
+    <logger name="com.softwaremill" level="DEBUG"/>
     <root level="info">
         <appender-ref ref="STDOUT"/>
     </root>

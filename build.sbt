@@ -10,6 +10,7 @@ lazy val commonSettings = Seq(
 
 lazy val sandbox = (project in file("."))
   .aggregate(service)
+  .settings(commonSettings)
   .settings(
     run := {
       (run in service in Compile).evaluated // Enables "sbt run" on the root project
@@ -28,7 +29,8 @@ lazy val akkaDependencies = Seq(
   "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
   "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
   "de.heikoseeberger" %% "akka-http-circe" % "1.11.0",
-  "ch.megard" %% "akka-http-cors" % "0.1.10"
+  "ch.megard" %% "akka-http-cors" % "0.1.10",
+  "com.github.dnvriend" %% "akka-persistence-inmemory" % "1.3.16" exclude ("org.scalatest", "scalatest")
 )
 
 val circeVersion = "0.6.1"
@@ -59,7 +61,7 @@ lazy val monitoringDependencies = Seq(
   "io.kamon" %% "kamon-core" % kamonVersion,
   "io.kamon" %% "kamon-jmx" % kamonVersion,
   "io.kamon" %% "kamon-akka-2.4" % kamonVersion,
-//  "io.kamon" %% "kamon-akka-remote_akka-2.4" % "0.6.3",
+  "io.kamon" %% "kamon-akka-remote_akka-2.4" % "0.6.3",
   "io.kamon" %% "kamon-akka-http" % kamonVersion
 )
 
