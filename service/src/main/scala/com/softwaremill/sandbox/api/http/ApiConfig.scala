@@ -1,4 +1,4 @@
-package com.softwaremill.sandbox
+package com.softwaremill.sandbox.api.http
 
 import com.typesafe.config.Config
 

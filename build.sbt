@@ -62,7 +62,9 @@ lazy val monitoringDependencies = Seq(
   "io.kamon" %% "kamon-jmx" % kamonVersion,
   "io.kamon" %% "kamon-akka-2.4" % kamonVersion,
   "io.kamon" %% "kamon-akka-remote_akka-2.4" % "0.6.3",
-  "io.kamon" %% "kamon-akka-http" % kamonVersion
+  "io.kamon" %% "kamon-akka-http" % kamonVersion,
+  "io.kamon" %% "kamon-scala" % kamonVersion,
+  "io.kamon" %% "kamon-datadog" % kamonVersion
 )
 
 lazy val testDependencies = Seq(

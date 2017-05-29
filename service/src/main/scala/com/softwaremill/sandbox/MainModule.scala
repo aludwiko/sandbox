@@ -5,12 +5,15 @@ import java.util.UUID
 import akka.actor.Status.Status
 import akka.actor.{ActorSystem, Props, Status}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.event.Logging.LogLevel
+import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
+import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import ch.megard.akka.http.cors.CorsDirectives
 import com.softwaremill.macwire._
@@ -19,9 +22,14 @@ import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Random, Success}
 import akka.pattern._
+import com.softwaremill.sandbox.api.http.{ApiConfig, UserController}
+import com.softwaremill.sandbox.application.{UserActor, UserActorMessageExtractor}
+import com.softwaremill.sandbox.application.UserActor.{UserRegion, UserRegionTag}
+import com.softwaremill.tagging.Tagger
+import kamon.trace.Tracer
 
 trait MainModule extends LazyLogging with CorsDirectives {
   def config: Config
@@ -29,18 +37,20 @@ trait MainModule extends LazyLogging with CorsDirectives {
   implicit val materializer: ActorMaterializer
 
   private var serverBinding: Option[ServerBinding] = None
-  private val apiConfig = wire[ApiConfig]
-  private val userActorMessageExtractor = wire[UserActorMessageExtractor]
+  private lazy val apiConfig = wire[ApiConfig]
+  private lazy val userActorMessageExtractor = wire[UserActorMessageExtractor]
 
-//  private lazy val userRegion = system.actorOf(Props(wire[UserActor]))
+  private lazy val userRegion: UserRegion =
+    ClusterSharding(system)
+      .start(
+        typeName = "UserActor",
+        entityProps = Props[UserActor],
+        settings = ClusterShardingSettings(system),
+        messageExtractor = userActorMessageExtractor
+      )
+      .taggedWith[UserRegionTag]
 
-  private lazy val userRegion =
-    ClusterSharding(system).start(
-      typeName = "UserActor",
-      entityProps = Props[UserActor],
-      settings = ClusterShardingSettings(system),
-      messageExtractor = userActorMessageExtractor
-    )
+  private lazy val userController = wire[UserController]
 
   def startApi(): Future[ServerBinding] = {
     logger.info(s"Starting API at: ${apiConfig.host}:${apiConfig.port}")
@@ -54,21 +64,27 @@ trait MainModule extends LazyLogging with CorsDirectives {
 
   def stopApi(): Unit = serverBinding.foreach(binding => Await.ready(binding.unbind(), 1.minute))
 
-  implicit val timeout = Timeout(5.seconds)
-
   def routes: Route =
-    pathPrefix("user-path") {
-      path("create") {
+    requestTime(Logging.InfoLevel, cors() {
+      userController.routes
+    })
 
-        val r = new Random()
-        val pause = r.nextInt(3000)
-//        println(s"waiting for $pause")
-//        Thread.sleep(pause)
-        onSuccess(userRegion ? UserActor.CreateUser(UUID.randomUUID().toString, "andrzej" + pause)) {
-          case name: String => complete(name)
-        }
-      } ~ path("asd") {
-        complete("123")
-      }
+  def requestTime(level: LogLevel, route: Route)(implicit m: Materializer, ex: ExecutionContext) = {
+
+    def elapsedTime(requestTimestamp: Long): Long = {
+      val responseTimestamp: Long = System.currentTimeMillis()
+      responseTimestamp - requestTimestamp
     }
+
+    def akkaResponseTimeLoggingFunction(loggingAdapter: LoggingAdapter, requestTimestamp: Long)(req: HttpRequest)(res: Any): Unit = {
+      val time = elapsedTime(requestTimestamp)
+      val entry = LogEntry(s"request: ${req.method} ${req.getUri()}, time=$time[ms]", level)
+      entry.logTo(loggingAdapter)
+    }
+    DebuggingDirectives.logRequestResult(LoggingMagnet(log => {
+      val requestTimestamp = System.currentTimeMillis()
+      akkaResponseTimeLoggingFunction(log, requestTimestamp)
+    }))(route)
+
+  }
 }
