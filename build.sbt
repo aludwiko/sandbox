@@ -82,7 +82,6 @@ lazy val service = (project in file("service"))
   .settings(commonSettings)
   .settings(
     mainClass in Compile := Some("com.softwaremill.sandbox.Main"),
-//    resolvers += Resolver.bintrayRepo("kamon-io", "releases"),
     libraryDependencies ++=
       loggerDependencies ++
         akkaDependencies ++
@@ -96,6 +95,17 @@ lazy val service = (project in file("service"))
   )
   .settings(
     name := "sandbox-service"
+  )
+
+lazy val perfTest = (project in file("perf-test"))
+  .enablePlugins(GatlingPlugin)
+  .settings(
+    scalaVersion := "2.11.8",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test,it",
+      "io.gatling.highcharts" % "gatling-charts-highcharts" % "2.2.3" % "test,it",
+      "io.gatling" % "gatling-test-framework" % "2.2.3" % "test,it"
+    )
   )
 
 scalafmtConfig in ThisBuild := Some(file(".scalafmt.conf"))
